@@ -17,3 +17,11 @@ venv/
 
 # Generated synthetic fixtures (recreate via scripts/seed_synthetic_data.py)
 fixtures/synthetic/
+
+# Local SQLite persistence (survives restart by design — never commit)
+*.db
+*.db-wal
+*.db-shm
+cyslop.db
+# Phase 6 — local audit anchor (regenerated via POST /audit/anchor)
+audit_anchor.json

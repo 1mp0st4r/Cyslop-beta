@@ -1,0 +1,38 @@
+# Production demo stack: backend (FastAPI) + frontend (Vite preview) + persisted volume.
+# Usage:  cp .env.example .env  # fill secrets, then:
+#         docker compose up --build -d
+#         frontend http://localhost:5173, backend http://localhost:8000, health /healthz
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      CYSLOP_DB_PATH: /data/cyslop.db
+      CYSLOP_ANCHOR_PATH: /data/audit_anchor.json
+    volumes:
+      - cyslop-data:/data
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./nexusfront
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  cyslop-data:

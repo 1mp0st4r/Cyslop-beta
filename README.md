@@ -65,12 +65,28 @@ While central systems (like CCTNS and NATGRID) serve as data aggregation layers,
 
 ---
 
+## 🚀 Deploy (Production)
+
+```bash
+cp .env.example .env   # set CYSLOP_JWT_SECRET (32+ chars), FRONTEND_ORIGINS, CYSLOP_SEED_USERS
+docker compose up --build -d
+curl http://localhost:8000/healthz
+ALLOW_INSECURE_DEV=1 CYSLOP_ENV=dev python -m pytest tests/ -q
+```
+
+Production notes: run behind TLS (reverse proxy), `CYSLOP_ENV=production` hides
+`/docs`, CORS is pinned to `FRONTEND_ORIGINS`, login is rate-limited
+(`10/minute` + 5-fail/5-min lockout with `LOGIN_FAILED` audit), users seed from
+`CYSLOP_SEED_USERS` only, audit anchor lives at `CYSLOP_ANCHOR_PATH` with
+optional external `CYSLOP_ANCHOR_URL`. SQLite volume `cyslop-data` must be
+backed up; move to managed Postgres for multi-replica scale.
+
 ## 🚀 Quick Start (Local Setup)
 
 ### Prerequisites
-* Python 3.9+
-* Node.js v18+
-* Neo4j Database Server
+* Python 3.11+
+* Node.js v20+
+* Docker (recommended) or local Python/Node
 
 ### 1. Clone & Set Up Backend
 ```bash

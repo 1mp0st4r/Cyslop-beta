@@ -1,5 +1,9 @@
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from models import EntityNode, EvidenceEdge, RiskAssessment
+
+# Phase 3: per-entity graph signals from analytics.entity_signals()
+# {pagerank, betweenness, in_money_cycle, burner_flag, computed_base_risk, ...}
+GraphSignals = Optional[Dict[str, Any]]
 
 # ISO/IEC 27005:2022 Annex A, Table A.3: Qualitative Risk Matrix
 # Maps (Likelihood 1-5, Consequence 1-5) -> Qualitative Risk Tier
@@ -12,9 +16,14 @@ ISO_27005_RISK_MATRIX = {
     (1, 5): "LOW",       (1, 4): "LOW",       (1, 3): "LOW",       (1, 2): "VERY LOW",(1, 1): "VERY LOW",
 }
 
-def _assess_likelihood(edges: List[EvidenceEdge]) -> Tuple[int, List[str]]:
-    """Evaluates Likelihood (1-5) per ISO 27005 Clause 7.3.3 & Table A.2."""
+def _assess_likelihood(edges: List[EvidenceEdge], signals: GraphSignals = None) -> Tuple[int, List[str]]:
+    """Evaluates Likelihood (1-5) per ISO 27005 Clause 7.3.3 & Table A.2.
+
+    Phase 3: graph signals (burner fan-out, money-cycle membership,
+    betweenness) boost the score instead of relying on raw edge counts alone.
+    """
     factors = []
+    signals = signals or {}
     if not edges:
         return 1, ["No active evidence connections identified (Likelihood: Unlikely)."]
 
@@ -39,22 +48,57 @@ def _assess_likelihood(edges: List[EvidenceEdge]) -> Tuple[int, List[str]]:
         score = 1
         desc = "Unlikely: Minimal observed activity."
 
+    # --- Phase 3 anomaly boosts (capped at 5) ---
+    if signals.get("burner_flag"):
+        score = min(5, score + 1)
+        detail = (signals.get("burner_detail") or {}).get("reason", "Burner/multi-contact cluster.")
+        factors.append(f"Anomaly boost: {detail} (+1 likelihood).")
+    if signals.get("in_money_cycle"):
+        score = min(5, score + 1)
+        factors.append("Anomaly boost: entity sits on a circular money-flow cycle (+1 likelihood).")
+    if float(signals.get("betweenness", 0.0)) >= 0.15 and score < 5:
+        score = min(5, score + 1)
+        factors.append(
+            f"Centrality boost: betweenness {float(signals.get('betweenness', 0.0)):.3f} "
+            "marks a bridge/broker node (+1 likelihood)."
+        )
+
     factors.append(f"Likelihood Level {score}/5 - {desc}")
     return score, factors
 
-def _assess_consequence(entity: EntityNode, edges: List[EvidenceEdge]) -> Tuple[int, List[str]]:
-    """Evaluates Consequence (1-5) per ISO 27005 Clause 7.3.2 & Table A.1."""
+def _assess_consequence(
+    entity: EntityNode, edges: List[EvidenceEdge], signals: GraphSignals = None
+) -> Tuple[int, List[str]]:
+    """Evaluates Consequence (1-5) per ISO 27005 Clause 7.3.2 & Table A.1.
+
+    Phase 3: prefers the computed `signals["computed_base_risk"]`
+    (PageRank + betweenness + anomalies) over the stored hardcoded
+    `base_risk_score`; falls back to the stored value when no signals given.
+    """
     factors = []
     consequence_score = 1
+    signals = signals or {}
+
+    # Computed severity wins; stored value is the fallback.
+    base_risk = float(signals.get("computed_base_risk", entity.base_risk_score))
+    if "computed_base_risk" in signals:
+        factors.append(
+            f"Computed base risk {base_risk:.1f}/100 from PageRank "
+            f"{float(signals.get('pagerank', 0.0)):.4f} + betweenness "
+            f"{float(signals.get('betweenness', 0.0)):.4f}"
+            + (" + money-cycle membership" if signals.get("in_money_cycle") else "")
+            + (" + burner-cluster flag" if signals.get("burner_flag") else "")
+            + "."
+        )
 
     # Check entity base severity (e.g. prior FIR flags, syndicate rank)
-    if entity.base_risk_score >= 80:
+    if base_risk >= 80:
         consequence_score = max(consequence_score, 5)
         factors.append("Consequence Level 5/5: Catastrophic impact (Major syndicate target / high-priority warrant).")
-    elif entity.base_risk_score >= 60:
+    elif base_risk >= 60:
         consequence_score = max(consequence_score, 4)
         factors.append("Consequence Level 4/5: Critical operational disruption.")
-    elif entity.base_risk_score >= 40:
+    elif base_risk >= 40:
         consequence_score = max(consequence_score, 3)
         factors.append("Consequence Level 3/5: Serious security concern.")
 
@@ -71,20 +115,23 @@ def _assess_consequence(entity: EntityNode, edges: List[EvidenceEdge]) -> Tuple[
 
 def calculate_threat_score(
     entity: EntityNode,
-    edges: List[EvidenceEdge]
+    edges: List[EvidenceEdge],
+    signals: GraphSignals = None,
 ) -> RiskAssessment:
     """
     Executes an ISO/IEC 27005 Clause 7 Risk Assessment.
     Combines Likelihood and Consequence via Table A.3 matrix and outputs Table A.6 tiers.
+    `signals` is the per-entity dict from analytics.entity_signals(); when
+    omitted the engine falls back to the legacy hardcoded behaviour.
     """
     # 1. Filter edges associated with this entity
     connected_edges = [
         e for e in edges if e.source_id == entity.id or e.target_id == entity.id
     ]
 
-    # 2. Derive ISO parameters
-    likelihood, l_factors = _assess_likelihood(connected_edges)
-    consequence, c_factors = _assess_consequence(entity, connected_edges)
+    # 2. Derive ISO parameters (Phase 3: graph-signal aware)
+    likelihood, l_factors = _assess_likelihood(connected_edges, signals)
+    consequence, c_factors = _assess_consequence(entity, connected_edges, signals)
 
     # 3. Determine Level of Risk from ISO 27005 Matrix (Table A.3)
     iso_tier = ISO_27005_RISK_MATRIX.get((likelihood, consequence), "MEDIUM")
