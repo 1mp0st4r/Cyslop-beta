@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+*.log
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local secrets — see .env.example
+.env.local
+
+# Generated synthetic fixtures (recreate via scripts/seed_synthetic_data.py)
+fixtures/synthetic/
