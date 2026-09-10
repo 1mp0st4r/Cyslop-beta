@@ -85,8 +85,12 @@ def log_officer_action(actor_id: str, action: str, case_id: str) -> AuditLogEntr
 
 
 def verify_audit_chain(case_id: str | None = None) -> bool:
-    entries = refresh_cache(case_id) if case_id else refresh_cache()
-    # When filtering by case, chain links are per-case; rebuild expected prev per case.
+    # Chain is global (prev_hash links across cases). Per-case filtered
+    # verification would always fail on interleaved cases, so verify the
+    # full global chain for integrity, then validate each requested-case
+    # entry's own hash. Returns global integrity when case_id is None,
+    # otherwise True only if global chain is intact (case entries valid).
+    entries = refresh_cache()
     for i, e in enumerate(entries):
         expected_prev = GENESIS_HASH if i == 0 else entries[i - 1].current_hash
         if e.previous_hash != expected_prev:
@@ -94,6 +98,11 @@ def verify_audit_chain(case_id: str | None = None) -> bool:
         if e.current_hash != _compute_hash(
                 e.timestamp, e.actor_id, e.action, e.case_id, e.previous_hash):
             return False
+    if case_id:
+        for e in entries:
+            if e.case_id == case_id and e.current_hash != _compute_hash(
+                    e.timestamp, e.actor_id, e.action, e.case_id, e.previous_hash):
+                return False
     return True
 
 

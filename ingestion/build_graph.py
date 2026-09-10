@@ -95,6 +95,11 @@ def ingest_firs(firs: list[dict], case_id: str, resolver: EntityResolver,
                     _add_evidence_row(eid, "FIR", f"{fir_no}#para{pi}", para)
                     stats["fir_edges"] += 1
     _flush_canonical(resolver, case_id)
+    try:
+        from entity_resolution import resolve_case as resolver_run  # F1 hook
+        resolver_run(case_id)
+    except Exception:
+        pass
     return dict(stats)
 
 
@@ -190,4 +195,9 @@ def ingest_synthetic_dir(synth_dir: str | Path, case_id: str,
         summary["computed_base_risk"] = recompute_base_risk_scores(case_id)
     except Exception as exc:  # never fail ingestion on analytics
         summary["computed_base_risk_error"] = str(exc)
+    try:
+        from entity_resolution import resolve_case as resolver_run  # F1 hook: resolution pass over case
+        summary["resolution"] = resolver_run(case_id)
+    except Exception:
+        pass
     return summary

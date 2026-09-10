@@ -33,3 +33,45 @@ class AuditLogEntry(BaseModel):
     case_id: str
     previous_hash: str
     current_hash: str
+
+
+# ---- F1 Entity Resolution (append-only; existing models untouched) ----
+from typing import Literal, Optional, Union
+
+ENTITY_TYPES = {"person", "phone", "vehicle", "location", "organization"}
+
+
+class SourceRef(BaseModel):
+    source_type: str  # "fir" | "cdr" | "bank" | "criminal_history" | ...
+    record_id: str  # id of the source record
+    field: Union[str, None] = None  # which field, if structured
+    span: Union[tuple[int, int], list[int], None] = None  # char offsets, if extracted from text
+    confidence: float = 1.0
+
+
+class CanonicalEntity(BaseModel):
+    id: str  # uuid
+    type: Literal["person", "phone", "vehicle", "location", "organization"]
+    canonical_name: Optional[str] = None
+    attributes: dict = Field(default_factory=dict)  # free-form type-specific attrs
+    source_refs: list[SourceRef] = Field(default_factory=list)
+    status: Literal["auto", "pending_review", "confirmed"] = "auto"
+
+# ---- F3 Suspicious Pattern Detection (Finding contract for F4/F6/F7) ----
+class EvidenceRef(BaseModel):
+    edge_id: str = ""
+    source_type: str = "EDGE"
+    reference: str = ""
+    detail: str = ""
+
+
+class Finding(BaseModel):
+    id: str
+    rule_id: str
+    severity: Literal["low", "medium", "high"] = "medium"  # type: ignore[valid-type]
+    score: float = Field(default=0.0, ge=0.0, le=1.0)
+    entity_ids: list[str] = Field(default_factory=list)
+    explanation: str = ""
+    evidence: list["EvidenceRef"] = Field(default_factory=list)  # type: ignore[valid-type]
+    detected_at: str = ""
+    status: Literal["open", "confirmed", "dismissed"] = "open"  # type: ignore[valid-type]

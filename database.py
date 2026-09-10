@@ -110,8 +110,68 @@ def get_db(db_path: str | None = None) -> Iterator[sqlite3.Connection]:
     try:
         yield conn
         conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
     finally:
         conn.close()
+
+
+# ---- F1 Entity Resolution (append-only; existing schema untouched) ----
+MERGE_LOG_SQL = """
+CREATE TABLE IF NOT EXISTS merge_log (
+    id TEXT PRIMARY KEY,
+    surviving_entity_id TEXT,
+    merged_entity_ids TEXT,
+    rule TEXT,
+    confidence REAL,
+    evidence TEXT,
+    decision TEXT,
+    decided_by TEXT,
+    created_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_merge_log_survivor ON merge_log(surviving_entity_id);
+"""
+
+# ---- F1 source_refs + F2 extraction runs (append-only) ----
+ENTITY_SOURCES_SQL = """
+CREATE TABLE IF NOT EXISTS entity_sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_id TEXT NOT NULL,
+    case_id TEXT NOT NULL DEFAULT '',
+    source_type TEXT NOT NULL,
+    record_id TEXT NOT NULL DEFAULT '',
+    field TEXT DEFAULT '',
+    span_start INTEGER,
+    span_end INTEGER,
+    confidence REAL NOT NULL DEFAULT 1.0
+);
+CREATE INDEX IF NOT EXISTS idx_entity_sources_entity ON entity_sources(entity_id);
+CREATE INDEX IF NOT EXISTS idx_entity_sources_case ON entity_sources(case_id);
+CREATE TABLE IF NOT EXISTS extraction_runs (
+    run_key TEXT PRIMARY KEY,
+    case_id TEXT NOT NULL DEFAULT '',
+    source_type TEXT NOT NULL DEFAULT '',
+    record_id TEXT NOT NULL DEFAULT '',
+    content_hash TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT '',
+    result TEXT NOT NULL DEFAULT '{}'
+);
+"""
+
+
+def ensure_entity_sources_table(db_path: str | None = None) -> None:
+    with get_db(db_path) as conn:
+        conn.executescript(ENTITY_SOURCES_SQL)
+
+
+def ensure_merge_log_table(db_path: str | None = None) -> None:
+    from datetime import datetime, timezone  # noqa: F401 (kept for future use)
+    with get_db(db_path) as conn:
+        conn.executescript(MERGE_LOG_SQL)
 
 
 def init_db(db_path: str | None = None) -> str:
@@ -120,6 +180,8 @@ def init_db(db_path: str | None = None) -> str:
     conn = connect(path)
     try:
         conn.executescript(SCHEMA_SQL)
+        conn.executescript(MERGE_LOG_SQL)
+        conn.executescript(ENTITY_SOURCES_SQL)
         conn.commit()
     finally:
         conn.close()

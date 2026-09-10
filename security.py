@@ -35,7 +35,19 @@ def assert_secret_configured() -> None:
         )
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = None
+try:
+    from passlib.context import CryptContext as _CC
+    _ctx = _CC(schemes=["bcrypt"], deprecated="auto")
+    # Probe: passlib+bcrypt>=4.0 raises on verify; fall back if broken.
+    try:
+        _probe_hash = _ctx.hash("probe-test-pw")
+        _ctx.verify("probe-test-pw", _probe_hash)
+        pwd_context = _ctx
+    except Exception:
+        pwd_context = None
+except Exception:
+    pwd_context = None
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -52,11 +64,42 @@ class CurrentUser(BaseModel):
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    if pwd_context is not None:
+        try:
+            return pwd_context.hash(password)
+        except Exception:
+            pass
+    try:
+        import bcrypt as _bcrypt
+        return _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
+    except Exception:
+        import hashlib as _hl
+        import os as _os
+        import base64 as _b64
+        salt = _b64.b64encode(_os.urandom(16)).decode()
+        return "$pbkdf2$" + salt + "$" + _hl.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 200_000).hex()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    if pwd_context is not None:
+        try:
+            return pwd_context.verify(plain, hashed)
+        except Exception:
+            pass
+    try:
+        import bcrypt as _bcrypt
+        if hashed.startswith("$2"):
+            return _bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        pass
+    try:
+        if hashed.startswith("$pbkdf2$"):
+            import hashlib as _hl
+            _, _, salt, digest = hashed.split("$", 3)
+            return _hl.pbkdf2_hmac("sha256", plain.encode(), salt.encode(), 200_000).hex() == digest
+    except Exception:
+        pass
+    return False
 
 
 def create_access_token(badge_id: str, role: str, active_case: str = "CAS-2026-102",
@@ -149,4 +192,12 @@ def mask_entity_pii(entity: EntityNode, role: str) -> EntityNode:
 
     masked_entity = entity.model_copy()
     masked_entity.phone_numbers = masked_phones
+    # Mask name/aliases for non-lead roles (analyst sees initials only).
+    def _mask_name(n: str) -> str:
+        if not n or len(n.strip()) < 2:
+            return "***"
+        parts = n.strip().split()
+        return " ".join((p[0] + "***") for p in parts)
+    masked_entity.name = _mask_name(entity.name)
+    masked_entity.aliases = [_mask_name(a) for a in (entity.aliases or [])]
     return masked_entity

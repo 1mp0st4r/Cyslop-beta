@@ -1,0 +1,4 @@
+record_id,name,aliases,phone,address,prior_case_ids
+CH-001,Vikram Rana,Bunty|Vikram Singh Rathore,+91-9812345678,"12 Malka Ganj, Delhi",FIR-2023-045|FIR-2024-112
+CH-002,Salim Qureshi,Salim Bhai,+91-8720011455,"Nehru Nagar, Ghaziabad",FIR-2024-087
+CH-003,Deepak Shetty,Deepak Anna,+91-9966332211,"Kurla West, Mumbai",FIR-2022-311|FIR-2023-078

@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Route, Switch, Link, useLocation, Redirect } from 'wouter';
-import { Grid2X2, Network, ClipboardList, ScrollText, LogOut, Menu } from 'lucide-react';
+import { Grid2X2, Network, ClipboardList, ScrollText, LogOut, Menu, Radar } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import Login from '@/pages/Login';
@@ -8,6 +8,7 @@ import Dashboard from '@/pages/Dashboard';
 import GraphView from '@/pages/GraphView';
 import ReviewQueue from '@/pages/ReviewQueue';
 import AuditLog from '@/pages/AuditLog';
+import Findings from '@/pages/Findings';
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000 } } });
 
@@ -39,6 +40,7 @@ function Shell() {
           {item('/dashboard', 'Dashboard', Grid2X2)}
           {item('/graph', 'Node Graph', Network)}
           {item('/review', 'Evidence Review', ClipboardList)}
+          {item('/findings', 'Findings', Radar)}
           {item('/audit', 'Audit Log', ScrollText)}
           <button className="nav-item" onClick={logout}><LogOut size={15} /><span>Log out ({auth.badge})</span></button>
         </nav>
@@ -61,6 +63,7 @@ function Shell() {
           <Route path="/graph" component={GraphView} />
           <Route path="/review" component={ReviewQueue} />
           <Route path="/audit" component={AuditLog} />
+          <Route path="/findings" component={Findings} />
           <Route><Redirect to="/dashboard" /></Route>
         </Switch>
       </div>
@@ -78,6 +81,7 @@ export default function App() {
           <Route path="/graph"><Shell /></Route>
           <Route path="/review"><Shell /></Route>
           <Route path="/audit"><Shell /></Route>
+          <Route path="/findings"><Shell /></Route>
           <Route path="/"><Shell /></Route>
           <Route><Redirect to="/dashboard" /></Route>
         </Switch>

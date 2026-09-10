@@ -43,10 +43,11 @@ def upsert_edge(edge: EvidenceEdge, case_id: str, link_id: str | None = None,
                                   confidence_score, evidence_source, status)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(id) DO UPDATE SET
-                 case_id=excluded.case_id, source_id=excluded.source_id,
-                 target_id=excluded.target_id, relation_type=excluded.relation_type,
-                 confidence_score=excluded.confidence_score,
-                 evidence_source=excluded.evidence_source""",
+                  case_id=excluded.case_id, source_id=excluded.source_id,
+                  target_id=excluded.target_id, relation_type=excluded.relation_type,
+                  confidence_score=excluded.confidence_score,
+                  evidence_source=excluded.evidence_source,
+                  status=excluded.status""",
             (eid, case_id, edge.source_id, edge.target_id, edge.relation_type,
              edge.confidence_score, edge.evidence_source, status),
         )

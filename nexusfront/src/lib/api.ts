@@ -56,7 +56,10 @@ export const api = {
   me: () => req<{ badge_id: string; role: string; active_case: string }>('/api/v1/auth/me'),
   overview: (caseId: string) => req<Overview>(`/api/v1/cases/${caseId}/overview`),
   graph: (caseId: string) => req<{ case_id: string; nodes: EntityNode[]; edges: GraphEdge[] }>(`/api/v1/cases/${caseId}/graph`),
-  risk: (entityId: string) => req<RiskAssessment>(`/api/v1/suspect/${entityId}/risk`),
+  risk: (entityId: string, caseId?: string) => req<RiskAssessment>(`/api/v1/suspect/${entityId}/risk${caseId ? `?case_id=${encodeURIComponent(caseId)}` : ''}`),
+  batchRisks: (entityIds: string[], caseId: string) =>
+    req<{ case_id: string; risks: Record<string, RiskAssessment> }>(
+      '/api/v1/suspects/risks', { method: 'POST', body: JSON.stringify({ entity_ids: entityIds, case_id: caseId }) }),
   pending: (caseId: string) => req<{ case_id: string; count: number; links: Record<string, unknown>[] }>(`/api/v1/cases/${caseId}/links/pending`),
   review: (link_id: string, action: 'APPROVE' | 'REJECT', officer_badge: string) =>
     req<{ status: string; link_id: string; decision: string; audit_hash: string }>(
@@ -64,11 +67,42 @@ export const api = {
   auditVerify: (caseId: string) =>
     req<{ case_id: string; chain_integrity_verified: boolean; anchor: Record<string, unknown>; total_entries: number; entries: AuditEntry[] }>(
       `/api/v1/cases/${caseId}/audit/verify`),
+  resolve: (caseId: string) =>
+    req<{ auto_merges: string[]; candidates: string[] }>(`/entities/resolve/${caseId}`, { method: 'POST' }),
+  entityDetail: (id: string) =>
+    req<{ entity: EntityNode & Record<string, unknown>; source_refs: Record<string, unknown>[]; merge_history: Record<string, unknown>[] }>(`/entities/${id}`),
+  candidates: (caseId: string) =>
+    req<{ case_id: string; count: number; candidates: Record<string, unknown>[] }>(`/resolution/candidates/${caseId}`),
+  acceptCandidate: (id: string) =>
+    req<Record<string, unknown>>(`/resolution/candidates/${id}/accept`, { method: 'POST' }),
+  rejectCandidate: (id: string) =>
+    req<Record<string, unknown>>(`/resolution/candidates/${id}/reject`, { method: 'POST' }),
+  unmerge: (mergeId: string) =>
+    req<Record<string, unknown>>(`/resolution/unmerge/${mergeId}`, { method: 'POST' }),
+  ingestText: (caseId: string, source_type: string, text: string, record_id?: string) =>
+    req<{ entities_created: number; entities_merged: number; relations_created: number }>(
+      `/ingest/text/${caseId}`, { method: 'POST', body: JSON.stringify({ source_type, text, record_id: record_id || '' }) }),
   auditAnchor: (caseId: string) =>
     req<Record<string, unknown>>(`/api/v1/cases/${caseId}/audit/anchor`, { method: 'POST' }),
+  scanPatterns: (caseId: string) =>
+    req<{ case_id: string; new_count: number; new: Finding[] }>(
+      `/patterns/scan/${caseId}`, { method: 'POST' }),
+  findings: (caseId: string, status?: string) =>
+    req<{ case_id: string; count: number; findings: Finding[] }>(
+      `/findings/${caseId}${status ? `?status=${status}` : ''}`),
+  confirmFinding: (id: string) =>
+    req<Finding>(`/findings/${id}/confirm`, { method: 'POST' }),
+  dismissFinding: (id: string) =>
+    req<Finding>(`/findings/${id}/dismiss`, { method: 'POST' }),
   logout: () =>
     req<{ session_status: string; total_actions_audited: number; chain_integrity_verified: boolean }>(
       '/api/v1/auth/logout', { method: 'POST' }),
+};
+
+export type EvidenceRef = { edge_id: string; source_type: string; reference: string; detail: string };
+export type Finding = {
+  id: string; rule_id: string; severity: string; score: number; entity_ids: string[];
+  explanation: string; evidence: EvidenceRef[]; detected_at: string; status: string;
 };
 
 export const ACTIVE_CASE = 'CAS-2026-102';

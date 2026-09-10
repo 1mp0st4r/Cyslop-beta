@@ -59,8 +59,22 @@ def ensure_seed_users() -> bool:
     with get_db() as conn:
         for badge_id, password, role, active_case in users:
             row = conn.execute(
-                "SELECT badge_id FROM users WHERE badge_id = ?", (badge_id,)).fetchone()
+                "SELECT badge_id, password_hash FROM users WHERE badge_id = ?",
+                (badge_id,)).fetchone()
             if row:
+                # Re-hash stale/corrupt hashes (e.g. produced by the old
+                # passlib+bcrypt4.0.1 incompatibility) so existing demo DBs
+                # keep working after the auth fix.
+                try:
+                    from security import verify_password
+                    if verify_password(password, row["password_hash"]):
+                        continue
+                except Exception:
+                    pass
+                conn.execute(
+                    "UPDATE users SET password_hash = ?, role = ?, active_case = ? WHERE badge_id = ?",
+                    (hash_password(password), role, active_case, badge_id))
+                seeded = True
                 continue
             conn.execute(
                 """INSERT INTO users (badge_id, password_hash, role, active_case, created_at)
@@ -95,6 +109,35 @@ MOCK_EDGES = [
 ]
 
 MOCK_LINK_IDS = ["LINK-001", "LINK-002", "LINK-003"]
+
+
+# ---- F1 Entity Resolution demo (append-only; idempotent) ----
+F1_DEMO_ENTITIES = [
+    # R1 auto-merge: same phone anchor + name similarity >= 85 ("R. Kumar" vs "Ramesh Kumar")
+    ("F1-A", "R. Kumar", ["+91-9876543210"]),
+    ("F1-B", "Ramesh Kumar", ["+91 98765 43210"]),
+    # R3 review: same phone, names 60-84 ("Ramesh Kumar" vs "Ramesh Khanna")
+    ("F1-C", "Ramesh Kumar", ["+91-9000000001"]),
+    ("F1-D", "Ramesh Khanna", ["+91-9000000001"]),
+    # R4 burner hub: shared phone, dissimilar names -> stay separate
+    ("F1-E", "Amit Verma", ["+91-9111111111"]),
+    ("F1-F", "Zara Khan", ["+91-9111111111"]),
+    # R5 review: rare-name match, no anchor
+    ("F1-G", "Chandrashekhar Venkataraman", []),
+    ("F1-H", "Chandrashekhar Venkataraman", []),
+]
+
+
+def ensure_f1_demo(case_id: str = DEFAULT_CASE_ID) -> dict:
+    """Seed F1 end-to-end scenario + run resolution. Idempotent (fixed ids)."""
+    from database import init_db
+    from entity_resolution import resolve_case
+    init_db()
+    ensure_seed_data(case_id)
+    for eid, name, phones in F1_DEMO_ENTITIES:
+        upsert_entity(EntityNode(id=eid, name=name, aliases=[], phone_numbers=phones,
+                                 entity_type="PERSON", base_risk_score=50.0), case_id)
+    return {"seeded": [e[0] for e in F1_DEMO_ENTITIES], **resolve_case(case_id)}
 
 
 def ensure_seed_data(case_id: str = DEFAULT_CASE_ID) -> bool:

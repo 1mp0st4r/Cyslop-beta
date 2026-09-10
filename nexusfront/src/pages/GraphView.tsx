@@ -38,12 +38,7 @@ export default function GraphView() {
     enabled: nodes.length > 0,
     queryFn: async () => {
       const out: Record<string, number> = {};
-      await Promise.all(nodes.map(async (n) => {
-        try {
-          if (n.entity_type === 'PERSON') out[n.id] = (await api.risk(n.id)).threat_score;
-          else out[n.id] = n.base_risk_score;
-        } catch { out[n.id] = n.base_risk_score; }
-      }));
+      try { const r = await api.batchRisks(nodes.map((n) => n.id), caseId); for (const n of nodes) out[n.id] = r.risks[n.id]?.threat_score ?? n.base_risk_score; } catch { for (const n of nodes) out[n.id] = n.base_risk_score; }
       return out;
     },
   });

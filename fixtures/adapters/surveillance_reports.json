@@ -1,0 +1,14 @@
+[
+  {
+    "record_id": "SURV-001",
+    "observed_at": "2026-08-14 21:35:00",
+    "location": "Paharganj",
+    "text": "Surveillance log SURV-001. Subject Bunty, alias of Vikram Rana, was seen near the Paharganj tea stall. Salim Bhai relayed the call on phone +91-9812345678 from a parked scooter. Deepak Anna kept watch from the corner."
+  },
+  {
+    "record_id": "SURV-002",
+    "observed_at": "2026-09-01T18:10:00",
+    "location": "Nehru Nagar",
+    "text": "Surveillance log SURV-002. Salim Qureshi met Deepak Shetty outside the Nehru Nagar workshop at dusk. Deepak Shetty carried a black bag; vehicle DL-01-AB-4402 was parked nearby."
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "record_id": "SM-001",
+    "account_handle": "@bunty_rana",
+    "platform": "telegram",
+    "author_name": "Vikram Rana",
+    "timestamps": ["2026-08-20T10:02:00", "2026-08-21T23:44:00"],
+    "mentions": ["Salim Qureshi", "Deepak Shetty", "Ravi Moti"]
+  },
+  {
+    "record_id": "SM-002",
+    "account_handle": "@salimbhai_official",
+    "platform": "instagram",
+    "author_name": "Salim Qureshi",
+    "timestamps": ["2026-08-22T09:15:00"],
+    "mentions": ["Deepak Shetty"]
+  },
+  {
+    "record_id": "SM-003",
+    "account_handle": "@ravi.moti",
+    "platform": "whatsapp",
+    "author_name": "Ravi Moti",
+    "timestamps": ["2026-08-23T02:11:00"],
+    "mentions": ["Vikram Rana"]
+  }
+]
